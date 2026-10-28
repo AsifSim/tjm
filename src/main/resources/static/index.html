@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UVM Protocol & TJM Sequencer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #0f172a; --bg-card: #1e293b; --bg-input: #0b1120; --border-color: #334155;
+            --text-main: #f8fafc; --text-muted: #94a3b8; --accent-primary: #3b82f6;
+            --accent-gradient: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            --success: #10b981; --danger: #ef4444; --warning: #f59e0b;
+            --radius: 10px; --transition: all 0.2s ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-main); color: var(--text-main); line-height: 1.5; padding: 40px 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+
+        h2 { font-size: 1.8rem; font-weight: 700; margin-bottom: 5px; background: var(--accent-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .subtitle { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 30px; }
+        h3 { font-size: 1.2rem; font-weight: 600; margin-bottom: 15px; color: var(--text-main); border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+        label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; }
+
+        input, select { width: 100%; background-color: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 12px; font-size: 0.9rem; transition: var(--transition); }
+        input:focus, select:focus { outline: none; border-color: var(--accent-primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); }
+        select[multiple] { height: 100px; padding: 5px; }
+        select[multiple] option { padding: 8px; border-radius: 4px; margin-bottom: 2px; }
+        select[multiple] option:checked { background: var(--accent-gradient); color: white; }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px; }
+
+        .card { background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 25px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .auth-wrapper { max-width: 450px; margin: 60px auto; }
+        .auth-tabs { display: flex; border-bottom: 1px solid var(--border-color); margin-bottom: 20px; }
+        .auth-tabs button { flex: 1; background: transparent; border: none; color: var(--text-muted); padding: 12px; font-weight: 600; cursor: pointer; transition: var(--transition); }
+        .auth-tabs button.active { color: var(--accent-primary); border-bottom: 2px solid var(--accent-primary); }
+
+        button.btn { display: inline-flex; justify-content: center; align-items: center; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 16px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: var(--transition); }
+        button.btn:hover { background: var(--border-color); }
+        button.btn-primary { background: var(--accent-gradient); border: none; color: white; }
+        button.btn-success { background: var(--success); border: none; color: white; }
+        button.btn-danger { background: rgba(239, 68, 68, 0.1); color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.3); padding: 6px 12px; }
+
+        .tjm-step { background-color: rgba(15, 23, 42, 0.5); border: 1px solid var(--border-color); border-left: 4px solid var(--accent-primary); border-radius: var(--radius); padding: 20px; margin-bottom: 15px; }
+        .step-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .step-badge { background: var(--accent-primary); color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+
+        .mapping-area { margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--border-color); }
+        .mapping-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .mapping-row select { flex: 1; padding: 8px; }
+
+        pre { background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; color: #a5b4fc; overflow-x: auto; font-size: 0.85rem; margin-top: 10px; }
+
+        .text-success { color: var(--success); } .text-danger { color: var(--danger); } .text-warning { color: var(--warning); }
+        .helper-text { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; display: block; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div style="text-align: center; margin-bottom: 40px;">
+        <h2>UVM TJM Sequencer</h2>
+        <div class="subtitle">Dynamic API Orchestration & Builder Engine</div>
+    </div>
+
+    <div id="authContainer" class="card auth-wrapper">
+        <div class="auth-tabs">
+            <button id="tabSignIn" class="active" onclick="switchAuthTab('signin')">Sign In</button>
+            <button id="tabSignUp" onclick="switchAuthTab('signup')">Sign Up</button>
+        </div>
+        <div style="margin-bottom: 15px;"><label>Username</label><input type="text" id="authUsername" placeholder="Enter your credentials"></div>
+        <div style="margin-bottom: 25px;"><label>Password</label><input type="password" id="authPassword" placeholder="••••••••"></div>
+        <button id="authBtn" class="btn btn-primary" style="width: 100%; height: 44px;" onclick="processAuth()">Authenticate Session</button>
+        <div id="authStatus" class="text-warning" style="margin-top:15px; text-align:center;">Awaiting Authentication...</div>
+    </div>
+
+    <div id="mainConfigBuilder" style="display: none;">
+
+        <div class="card">
+            <h3>1. Application Context</h3>
+            <div class="grid-2">
+                <div><label>Application ID</label><input type="text" id="appId" value="APP-9000"></div>
+                <div><label>Dashboard / Module Name</label><input type="text" id="dashboardName" value="Pricing Engine"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>2. Dynamic API Definition</h3>
+            <div class="grid-4">
+                <div><label>API Reference (Alias)</label><input type="text" id="apiRef" value="calculatePrice"></div>
+                <div><label>Target API URL (Route)</label><input type="text" id="apiUrl" value="api/v2/pricing"></div>
+                <div>
+                    <label>Expected Inputs</label>
+                    <input type="text" id="inputParams" placeholder="e.g., test1, test2" onkeyup="refreshAllMappingDropdowns()">
+                    <span class="helper-text">Comma-separated keys</span>
+                </div>
+                <div>
+                    <label>HTTP Method & Trigger</label>
+                    <div style="display: flex; gap: 10px;">
+                        <select id="method" style="flex: 1;"><option value="POST">POST</option><option value="GET">GET</option></select>
+                        <select id="sourceTrigger" style="flex: 2;">
+                            <option value="CONSOLE">CONSOLE (Headless CLI)</option>
+                            <option value="UI">UI (Dashboard)</option>
+                            <option value="EXCEL">EXCEL (Plugin)</option>
+                            <option value="CHAT">CHAT (Assistant)</option>
+                            <option value="FAQ">FAQ (Bot)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+                <h3 style="border: none; margin: 0; padding: 0;">3. Transaction Journey Map (TJM)</h3>
+                <button class="btn btn-success" style="font-size: 0.8rem; padding: 6px 12px;" onclick="addStep()">+ Add Step</button>
+            </div>
+            <div id="stepContainer"></div>
+        </div>
+
+        <div class="card" style="border-color: var(--accent-primary);">
+            <h3>4. Response Definition</h3>
+            <label>Final Output Virtual Attribute (API JSON Response)</label>
+            <div class="grid-2" style="margin-bottom: 0;">
+                <div>
+                    <select id="finalOutputEntity" onchange="populateFinalAttributes(this.value)">
+                        <option value="">Select Origin Entity...</option>
+                    </select>
+                </div>
+                <div>
+                    <select id="finalOutputCol">
+                        <option value="">Select Target Attribute...</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="mapping-area">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <label style="margin:0; color:var(--accent-primary);">Filter & Variable Mappings</label>
+                    <button class="btn btn-sm" style="padding: 4px 8px; font-size: 0.75rem;" onclick="addFinalMappingRow(this)">+ Add Filter</button>
+                </div>
+                <div id="finalMappingsContainer"></div>
+            </div>
+
+            <button id="deployBtn" class="btn btn-primary" style="width: 100%; height: 50px; margin-top: 25px; font-size: 1.05rem;" onclick="saveProtocol()">
+                Deploy Dynamic API Configuration
+            </button>
+            <div id="statusMsg" style="text-align:center; margin-top:15px; font-weight:600;"></div>
+        </div>
+
+        <div id="resultPanel" class="card" style="display: none; border-color: var(--success);">
+            <h3 class="text-success">🚀 API Deployed Successfully</h3>
+            <p style="margin-bottom: 10px;"><strong>cURL Execution Command:</strong></p>
+            <pre id="resultCurl"></pre>
+            <p style="margin-top: 20px; margin-bottom: 10px;"><strong>Generated Protocol JSON (API Contract & Nested TJM):</strong></p>
+            <pre id="resultJson"></pre>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    let stepCount = 0;
+    let bearerToken = null;
+    let currentAuthMode = 'signin';
+    let entityDbCache = [];
+
+    function switchAuthTab(mode) {
+        currentAuthMode = mode;
+        document.getElementById('tabSignIn').classList.remove('active');
+        document.getElementById('tabSignUp').classList.remove('active');
+        const btn = document.getElementById('authBtn');
+        if (mode === 'signin') { document.getElementById('tabSignIn').classList.add('active'); btn.innerText = "Authenticate Session"; }
+        else { document.getElementById('tabSignUp').classList.add('active'); btn.innerText = "Register New Account"; }
+        document.getElementById('authStatus').innerText = "Awaiting Authentication...";
+        document.getElementById('authStatus').className = "text-warning";
+    }
+
+    async function processAuth() {
+        const user = document.getElementById('authUsername').value;
+        const pass = document.getElementById('authPassword').value;
+        const statusEl = document.getElementById('authStatus');
+        if(!user || !pass) return;
+
+        const endpoint = currentAuthMode === 'signin' ? '/signin' : '/signup';
+        try {
+            const res = await fetch(`http://localhost:8080/api/v1/uvm/auth${endpoint}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: user, password: pass })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                if (currentAuthMode === 'signup') {
+                    statusEl.className = "text-success"; statusEl.innerText = data.message;
+                    setTimeout(() => switchAuthTab('signin'), 1500);
+                } else {
+                    bearerToken = data.token;
+                    document.getElementById('authContainer').style.display = 'none';
+                    document.getElementById('mainConfigBuilder').style.display = 'block';
+                    fetchEntityMetadata();
+                }
+            } else {
+                statusEl.className = "text-danger"; statusEl.innerText = `Error: ${data.error || 'Authentication Failed'}`;
+            }
+        } catch (e) {
+            statusEl.className = "text-danger"; statusEl.innerText = "Server Connection Error.";
+        }
+    }
+
+    async function fetchEntityMetadata() {
+        try {
+            const res = await fetch('http://localhost:8080/api/v1/uvm/entities', { headers: { 'Authorization': 'Bearer ' + bearerToken } });
+            if (res.ok) {
+                entityDbCache = await res.json();
+                populateEntityDropdowns();
+                addStep();
+            }
+        } catch (e) { console.error("Failed to load DEAM entities."); }
+    }
+
+    function populateEntityDropdowns() {
+        const finalEntitySelect = document.getElementById('finalOutputEntity');
+        finalEntitySelect.innerHTML = '<option value="">Select Origin Entity...</option>';
+        entityDbCache.forEach(e => finalEntitySelect.innerHTML += `<option value="${e.entityName}">${e.entityName}</option>`);
+    }
+
+    function populateFinalAttributes(entityName) {
+        const attrSelect = document.getElementById('finalOutputCol');
+        attrSelect.innerHTML = '<option value="">Select Target Attribute...</option>';
+        const entity = entityDbCache.find(e => e.entityName === entityName);
+        if (entity) entity.attributes.forEach(attr => attrSelect.innerHTML += `<option value="${attr}">${attr}</option>`);
+    }
+
+    function getAvailableVariables() {
+        let vars = document.getElementById('inputParams').value.split(',').map(s => s.trim()).filter(s => s);
+        document.querySelectorAll('.tjm-step').forEach(step => {
+            const entityName = step.querySelector('.stepTarget').value;
+            const cols = Array.from(step.querySelector('.stepColumns').selectedOptions).map(opt => opt.value);
+            if(entityName) cols.forEach(c => vars.push(`${entityName}.${c}`));
+        });
+        return [...new Set(vars)];
+    }
+
+    window.refreshAllMappingDropdowns = function() {
+        const vars = getAvailableVariables();
+        let options = '<option value="">Source Context Variable...</option>';
+        vars.forEach(v => options += `<option value="${v}">${v}</option>`);
+
+        document.querySelectorAll('.map-source-input').forEach(select => {
+            const currentVal = select.value;
+            select.innerHTML = options;
+            select.value = currentVal;
+        });
+    };
+
+    function addStep() {
+        stepCount++;
+        const div = document.createElement('div');
+        div.className = 'tjm-step';
+        let entityOptions = '<option value="">Select Target DEAM...</option>';
+        entityDbCache.forEach(e => entityOptions += `<option value="${e.entityName}">${e.entityName}</option>`);
+
+        div.innerHTML = `
+            <div class="step-header">
+                <span class="step-badge">Execution Step ${stepCount}</span>
+                <select class="stepType" style="width: auto; padding: 6px 12px; background: var(--bg-card);">
+                    <option value="FABRIC_FETCH">Fabric DEAM Fetch</option>
+                    <option value="RULE_EXECUTION">Rule Engine Validation</option>
+                </select>
+            </div>
+            <div class="grid-2" style="margin-bottom: 0;">
+                <div>
+                    <label>Target Entity Model</label>
+                    <select class="stepTarget" onchange="updateStepAttributes(this)">${entityOptions}</select>
+                </div>
+                <div>
+                    <label>Columns to Fetch / Process</label>
+                    <select class="stepColumns" multiple onchange="refreshAllMappingDropdowns()"></select>
+                </div>
+            </div>
+            <div class="mapping-area">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <label style="margin:0; color:var(--accent-primary);">Filter & Variable Mappings</label>
+                    <button class="btn btn-sm" style="padding: 4px 8px; font-size: 0.75rem;" onclick="addMappingRow(this, true)">+ Add Filter</button>
+                </div>
+                <div class="mapping-rows-container"></div>
+            </div>
+        `;
+        document.getElementById('stepContainer').appendChild(div);
+    }
+
+    window.updateStepAttributes = function(selectElement) {
+        const entityName = selectElement.value;
+        const stepDiv = selectElement.closest('.tjm-step') || document.getElementById('mainConfigBuilder');
+        const colSelect = stepDiv.querySelector('.stepColumns') || document.getElementById('finalOutputCol');
+        let options = '';
+        const entity = entityDbCache.find(e => e.entityName === entityName);
+        if (entity) entity.attributes.forEach(attr => options += `<option value="${attr}">${attr}</option>`);
+        if(colSelect && colSelect.multiple) colSelect.innerHTML = options;
+
+        stepDiv.querySelectorAll('.map-target-col').forEach(mapSelect => {
+            const currentVal = mapSelect.value;
+            mapSelect.innerHTML = '<option value="">Target DB Column...</option>' + options;
+            mapSelect.value = currentVal;
+        });
+        refreshAllMappingDropdowns();
+    };
+
+    window.addMappingRow = function(btnElement, isStep) {
+        const container = isStep ? btnElement.parentElement.nextElementSibling : document.getElementById('finalMappingsContainer');
+        const entityName = isStep ? btnElement.closest('.tjm-step').querySelector('.stepTarget').value : document.getElementById('finalOutputEntity').value;
+
+        let colOptions = '<option value="">Target DB Column...</option>';
+        const entity = entityDbCache.find(e => e.entityName === entityName);
+        if (entity) entity.attributes.forEach(attr => colOptions += `<option value="${attr}">${attr}</option>`);
+
+        let inputOptions = '<option value="">Source Context Variable...</option>';
+        getAvailableVariables().forEach(v => inputOptions += `<option value="${v}">${v}</option>`);
+
+        const row = document.createElement('div');
+        row.className = 'mapping-row';
+        row.innerHTML = `
+            <select class="map-target-col">${colOptions}</select>
+            <select class="map-operator" style="max-width: 80px;"><option value="=">=</option><option value=">=">&gt;=</option><option value="<=">&lt;=</option><option value="!=">!=</option></select>
+            <select class="map-source-input">${inputOptions}</select>
+            <button class="btn btn-danger" onclick="this.parentElement.remove()">X</button>
+        `;
+        container.appendChild(row);
+    };
+
+    window.addFinalMappingRow = function(btnElement) { addMappingRow(btnElement, false); };
+
+    async function saveProtocol() {
+        const deployBtn = document.getElementById('deployBtn');
+        const statusMsg = document.getElementById('statusMsg');
+
+        deployBtn.innerText = "Processing...";
+        statusMsg.innerText = "";
+
+        try {
+            const sequence = [];
+            document.querySelectorAll('.tjm-step').forEach(step => {
+                const mappings = [];
+                step.querySelectorAll('.mapping-row').forEach(row => mappings.push({
+                    targetCol: row.querySelector('.map-target-col').value,
+                    operator: row.querySelector('.map-operator').value,
+                    sourceInput: row.querySelector('.map-source-input').value
+                }));
+
+                sequence.push({
+                    stepType: step.querySelector('.stepType').value,
+                    targetEntity: step.querySelector('.stepTarget').value,
+                    targetColumns: Array.from(step.querySelector('.stepColumns').selectedOptions).map(opt => opt.value).join(','),
+                    stepMappings: mappings
+                });
+            });
+
+            const finalMappings = [];
+            document.getElementById('finalMappingsContainer').querySelectorAll('.mapping-row').forEach(row => {
+                finalMappings.push({
+                    targetCol: row.querySelector('.map-target-col').value,
+                    operator: row.querySelector('.map-operator').value,
+                    sourceInput: row.querySelector('.map-source-input').value
+                });
+            });
+
+            const payload = {
+                appId: document.getElementById('appId').value,
+                dashboardName: document.getElementById('dashboardName').value,
+                apis: {}
+            };
+
+            const apiRef = document.getElementById('apiRef').value;
+            const apiRoute = document.getElementById('apiUrl').value;
+
+            // All business logic nested cleanly inside tjmSequence
+            payload.apis[apiRef] = {
+                apiUrl: apiRoute,
+                method: document.getElementById('method').value,
+                tjmSequence: {
+                    inputParameters: document.getElementById('inputParams').value,
+                    sourceTrigger: document.getElementById('sourceTrigger').value,
+                    finalOutputEntity: document.getElementById('finalOutputEntity').value,
+                    finalOutputColumn: document.getElementById('finalOutputCol').value,
+                    finalResponseMappings: finalMappings,
+                    steps: sequence
+                }
+            };
+
+            const response = await fetch('http://localhost:8080/api/v1/uvm/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + bearerToken },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                deployBtn.innerText = "Deploy Dynamic API Configuration";
+                document.getElementById('resultPanel').style.display = 'block';
+                document.getElementById('resultJson').innerText = JSON.stringify(payload, null, 2);
+
+                let sampleJson = "{";
+                const inputs = document.getElementById('inputParams').value.split(',').map(s=>s.trim()).filter(s=>s);
+                inputs.forEach((i, idx) => sampleJson += `\\"${i}\\": \\"sample_val\\"` + (idx < inputs.length -1 ? ", " : ""));
+                sampleJson += "}";
+
+                document.getElementById('resultCurl').innerText = `curl -s -b uvm.cookie -X POST "http://localhost:8080/${apiRoute}" \\\n-H "Content-Type: application/json" \\\n-d "${sampleJson}"`;
+                window.scrollTo(0, document.body.scrollHeight);
+            } else {
+                throw new Error(`Server returned HTTP ${response.status}`);
+            }
+        } catch (error) {
+            console.error(error);
+            deployBtn.innerText = "Deploy Dynamic API Configuration";
+            statusMsg.className = "text-danger";
+            statusMsg.innerText = "Execution Error: " + error.message;
+        }
+    }
+</script>
+</body>
+</html>
